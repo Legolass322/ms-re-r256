@@ -1,0 +1,674 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ARIA - Advanced Requirements Intelligence & Analytics API",
+    "description": "AI-powered requirements prioritization tool that automates multi-criteria analysis for objective requirement prioritization",
+    "version": "1.0.0",
+    "contact": {
+      "name": "ARIA Team",
+      "email": "support@aria-app.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.aria-app.com/v1",
+      "description": "Production server"
+    },
+    {
+      "url": "http://localhost:8080/v1",
+      "description": "Development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "requirements",
+      "description": "Requirements management operations"
+    },
+    {
+      "name": "prioritization",
+      "description": "AI-powered prioritization operations"
+    },
+    {
+      "name": "export",
+      "description": "Export and reporting operations"
+    }
+  ],
+  "paths": {
+    "/requirements/upload": {
+      "post": {
+        "tags": ["requirements"],
+        "summary": "Upload requirements from CSV/Excel file",
+        "description": "Upload a CSV or Excel file containing requirements for prioritization",
+        "operationId": "uploadRequirements",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV or Excel file containing requirements"
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Requirements uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file format or content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File too large (max 100 requirements)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requirements": {
+      "post": {
+        "tags": ["requirements"],
+        "summary": "Create requirements manually",
+        "description": "Submit requirements via form input",
+        "operationId": "createRequirements",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequirementsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Requirements created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRequirementsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["requirements"],
+        "summary": "Get all requirements",
+        "description": "Retrieve all requirements for the current session",
+        "operationId": "getRequirements",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "description": "Session ID to retrieve requirements for",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requirements retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementsList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/prioritization/analyze": {
+      "post": {
+        "tags": ["prioritization"],
+        "summary": "Analyze and prioritize requirements",
+        "description": "Process requirements using AI-powered weighted scoring and ML model to generate prioritization",
+        "operationId": "analyzePrioritization",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrioritizationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Prioritization completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrioritizationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or no requirements found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Processing timeout (exceeded 5s limit)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/prioritization/{sessionId}": {
+      "get": {
+        "tags": ["prioritization"],
+        "summary": "Get prioritization results",
+        "description": "Retrieve prioritization results for a specific session",
+        "operationId": "getPrioritization",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "description": "Session ID to retrieve prioritization for",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prioritization results retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrioritizationResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session or results not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/export/csv/{sessionId}": {
+      "get": {
+        "tags": ["export"],
+        "summary": "Export results as CSV",
+        "description": "Download prioritization results in CSV format",
+        "operationId": "exportCsv",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "description": "Session ID to export",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV file generated successfully",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/export/html/{sessionId}": {
+      "get": {
+        "tags": ["export"],
+        "summary": "Export results as HTML report",
+        "description": "Generate and download a static HTML report with prioritization results",
+        "operationId": "exportHtml",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "description": "Session ID to export",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML report generated successfully",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["health"],
+        "summary": "Health check",
+        "description": "Check API health status",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Requirement": {
+        "type": "object",
+        "required": ["id", "title", "description"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the requirement"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short title of the requirement",
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of the requirement",
+            "maxLength": 2000
+          },
+          "businessValue": {
+            "type": "number",
+            "format": "double",
+            "description": "Business value score (1-10)",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "cost": {
+            "type": "number",
+            "format": "double",
+            "description": "Implementation cost estimate (1-10, where 10 is most expensive)",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "risk": {
+            "type": "number",
+            "format": "double",
+            "description": "Implementation risk score (1-10, where 10 is highest risk)",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "urgency": {
+            "type": "number",
+            "format": "double",
+            "description": "Urgency score (1-10)",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "stakeholderValue": {
+            "type": "number",
+            "format": "double",
+            "description": "Stakeholder importance score (1-10)",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "category": {
+            "type": "string",
+            "description": "Requirement category",
+            "enum": ["FEATURE", "ENHANCEMENT", "BUG_FIX", "TECHNICAL", "COMPLIANCE"]
+          }
+        }
+      },
+      "PrioritizedRequirement": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Requirement"
+          },
+          {
+            "type": "object",
+            "required": ["priorityScore", "rank"],
+            "properties": {
+              "priorityScore": {
+                "type": "number",
+                "format": "double",
+                "description": "Calculated priority score (0-100)"
+              },
+              "rank": {
+                "type": "integer",
+                "description": "Priority ranking (1 = highest priority)"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "double",
+                "description": "ML model confidence score (0-1)",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "reasoning": {
+                "type": "string",
+                "description": "AI-generated explanation for the priority score"
+              }
+            }
+          }
+        ]
+      },
+      "UploadResponse": {
+        "type": "object",
+        "required": ["sessionId", "requirementsCount", "message"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Session ID for this upload"
+          },
+          "requirementsCount": {
+            "type": "integer",
+            "description": "Number of requirements parsed from file"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Requirement"
+            }
+          }
+        }
+      },
+      "CreateRequirementsRequest": {
+        "type": "object",
+        "required": ["requirements"],
+        "properties": {
+          "requirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Requirement"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        }
+      },
+      "CreateRequirementsResponse": {
+        "type": "object",
+        "required": ["sessionId", "requirementsCount"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Session ID for these requirements"
+          },
+          "requirementsCount": {
+            "type": "integer",
+            "description": "Number of requirements created"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          }
+        }
+      },
+      "RequirementsList": {
+        "type": "object",
+        "required": ["sessionId", "requirements"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Requirement"
+            }
+          }
+        }
+      },
+      "PrioritizationRequest": {
+        "type": "object",
+        "required": ["sessionId"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Session ID containing requirements to prioritize"
+          },
+          "weights": {
+            "type": "object",
+            "description": "Custom weights for scoring criteria (optional)",
+            "properties": {
+              "businessValue": {
+                "type": "number",
+                "format": "double",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.3
+              },
+              "cost": {
+                "type": "number",
+                "format": "double",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.2
+              },
+              "risk": {
+                "type": "number",
+                "format": "double",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.15
+              },
+              "urgency": {
+                "type": "number",
+                "format": "double",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.2
+              },
+              "stakeholderValue": {
+                "type": "number",
+                "format": "double",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.15
+              }
+            }
+          }
+        }
+      },
+      "PrioritizationResponse": {
+        "type": "object",
+        "required": ["sessionId", "prioritizedRequirements", "processingTimeMs"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "prioritizedRequirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrioritizedRequirement"
+            },
+            "description": "Requirements sorted by priority (highest first)"
+          },
+          "processingTimeMs": {
+            "type": "integer",
+            "description": "Processing time in milliseconds"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "totalRequirements": {
+                "type": "integer"
+              },
+              "averageScore": {
+                "type": "number",
+                "format": "double"
+              },
+              "modelVersion": {
+                "type": "string"
+              },
+              "weightsUsed": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error", "message"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error code"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message"
+          },
+          "details": {
+            "type": "object",
+            "description": "Additional error details",
+            "additionalProperties": true
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": ["status", "timestamp"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "unhealthy"]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

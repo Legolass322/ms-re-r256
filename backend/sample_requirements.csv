@@ -1,0 +1,26 @@
+id,title,description,businessValue,cost,risk,urgency,stakeholderValue,category
+req-001,User Authentication System,Implement secure user login and registration with email verification and password recovery,9,7,4,9,9,FEATURE
+req-002,Dashboard Analytics,Create interactive dashboard with real-time analytics and customizable widgets,8,6,3,7,8,FEATURE
+req-003,Data Export Functionality,Enable users to export data in multiple formats (CSV Excel PDF),7,4,2,6,7,FEATURE
+req-004,Mobile Responsive Design,Ensure application works seamlessly across all mobile devices and tablets,8,5,3,8,8,ENHANCEMENT
+req-005,Performance Optimization,Optimize database queries and API response times to improve overall performance,7,6,4,7,6,TECHNICAL
+req-006,Security Audit,Conduct comprehensive security audit and implement recommended fixes,9,5,5,9,9,COMPLIANCE
+req-007,Two-Factor Authentication,Add optional 2FA for enhanced account security,8,4,2,6,7,FEATURE
+req-008,Dark Mode Support,Implement dark mode theme option for better user experience,6,3,1,4,6,ENHANCEMENT
+req-009,Bug Fix - Login Timeout,Fix issue where users are logged out unexpectedly during active sessions,8,3,2,9,8,BUG_FIX
+req-010,API Rate Limiting,Implement rate limiting to prevent API abuse and ensure fair usage,7,4,3,7,7,TECHNICAL
+req-011,User Profile Management,Allow users to update profile information avatar and preferences,7,5,2,6,7,FEATURE
+req-012,Email Notifications,Send automated email notifications for important events and updates,6,4,2,5,6,FEATURE
+req-013,Advanced Search Filters,Add advanced filtering and search capabilities with multiple criteria,7,6,3,6,7,ENHANCEMENT
+req-014,Data Backup System,Implement automated daily backups with point-in-time recovery,9,6,4,8,9,TECHNICAL
+req-015,GDPR Compliance,Ensure application meets GDPR requirements for data privacy and user rights,9,7,5,9,9,COMPLIANCE
+req-016,Social Media Integration,Enable sharing and login via social media platforms,6,5,3,4,5,FEATURE
+req-017,Audit Trail Logging,Maintain comprehensive audit logs for all critical operations,8,5,3,7,8,COMPLIANCE
+req-018,Multi-language Support,Add internationalization support for English Spanish French and German,7,7,4,5,6,ENHANCEMENT
+req-019,Payment Gateway Integration,Integrate secure payment processing with multiple payment options,9,8,5,8,9,FEATURE
+req-020,Bug Fix - Data Sync Issues,Resolve intermittent data synchronization failures between systems,8,4,3,8,8,BUG_FIX
+req-021,Automated Testing Suite,Create comprehensive automated test suite with 80% code coverage,7,8,4,6,7,TECHNICAL
+req-022,Customer Support Chat,Implement live chat support system with chat history,7,6,3,6,7,FEATURE
+req-023,Performance Monitoring,Set up real-time performance monitoring and alerting system,8,5,3,7,8,TECHNICAL
+req-024,User Onboarding Tutorial,Create interactive tutorial for new users with step-by-step guidance,6,4,2,5,6,ENHANCEMENT
+req-025,API Documentation,Generate comprehensive API documentation with interactive examples,7,5,2,6,7,TECHNICAL
