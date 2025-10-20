@@ -1,6 +1,6 @@
-# Backend Integration Guide
+# API
 
-This guide helps backend developers implement the ARIA API based on the OpenAPI specification.
+This guide describes the OpenAPI specification.
 
 ## 📄 OpenAPI Specification
 
