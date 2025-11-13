@@ -1,7 +1,12 @@
+const String _defaultApiUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://localhost:8080',
+);
+
 class AppConstants {
   // API Configuration
-  static const String defaultApiUrl = 'http://localhost:8080/v1';
-  static const String prodApiUrl = 'https://api.aria-app.com/v1';
+  static const String defaultApiUrl = _defaultApiUrl;
+  static const String prodApiUrl = 'https://api.aria-app.com';
 
   // Limits
   static const int maxRequirements = 100;

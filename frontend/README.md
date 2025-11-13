@@ -14,8 +14,8 @@ Apple-inspired minimalistic UI with:
 
 ### Prerequisites
 
-- Flutter SDK 3.9.2 or higher
-- Dart SDK 3.9.2 or higher
+- Flutter SDK 3.24.3 or higher
+- Dart SDK 3.5.3 or higher
 
 ### Installation
 
@@ -96,7 +96,7 @@ static const String prodApiUrl = 'https://your-backend-url.com/v1';
 
 ## 🏗️ Tech Stack
 
-- **Framework**: Flutter 3.9.2
+- **Framework**: Flutter 3.24.3
 - **State Management**: BLoC Pattern
 - **HTTP Client**: Dio
 - **Charts**: FL Chart

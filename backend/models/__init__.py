@@ -5,7 +5,8 @@ from .requirement import (
 from .responses import (
     UploadResponse, CreateRequirementsRequest, CreateRequirementsResponse,
     RequirementsList, PrioritizationRequest, PrioritizationResponse,
-    Error, HealthResponse
+    Error, HealthResponse, SessionSummary, SessionsResponse, SessionDetails,
+    ChatGPTAnalysisRequest, ChatGPTAnalysisResponse, LLMConfigRequest, LLMConfigResponse
 )
 
 __all__ = [
@@ -20,5 +21,12 @@ __all__ = [
     "PrioritizationRequest",
     "PrioritizationResponse",
     "Error",
-    "HealthResponse"
+    "HealthResponse",
+    "SessionSummary",
+    "SessionsResponse",
+    "SessionDetails",
+    "ChatGPTAnalysisRequest",
+    "ChatGPTAnalysisResponse",
+    "LLMConfigRequest",
+    "LLMConfigResponse",
 ]

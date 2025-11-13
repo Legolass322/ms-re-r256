@@ -9,14 +9,25 @@ import '../bloc/requirements_state.dart';
 import 'results_screen.dart';
 
 class RequirementsFormScreen extends StatefulWidget {
-  const RequirementsFormScreen({super.key});
+  final List<Requirement>? initialRequirements;
+
+  const RequirementsFormScreen({
+    super.key,
+    this.initialRequirements,
+  });
 
   @override
   State<RequirementsFormScreen> createState() => _RequirementsFormScreenState();
 }
 
 class _RequirementsFormScreenState extends State<RequirementsFormScreen> {
-  final List<Requirement> _requirements = [];
+  late List<Requirement> _requirements;
+
+  @override
+  void initState() {
+    super.initState();
+    _requirements = List<Requirement>.from(widget.initialRequirements ?? []);
+  }
 
   void _addRequirement() {
     showModalBottomSheet(
@@ -92,6 +103,17 @@ class _RequirementsFormScreenState extends State<RequirementsFormScreen> {
               AnalyzePrioritizationEvent(sessionId: state.sessionId),
             );
           } else if (state is PrioritizationComplete) {
+            // Validate data before navigation
+            if (state.prioritizedRequirements.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Error: No requirements to display'),
+                  backgroundColor: AppTheme.errorColor,
+                ),
+              );
+              return;
+            }
+            
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -423,6 +445,20 @@ class _RequirementFormSheetState extends State<_RequirementFormSheet> {
     }
   }
 
+  String? _validateScore(String? value, String label) {
+    if (value == null || value.trim().isEmpty) {
+      return null;
+    }
+    final number = double.tryParse(value);
+    if (number == null) {
+      return 'Enter a number for $label';
+    }
+    if (number < 1 || number > 10) {
+      return '$label must be between 1 and 10';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -528,9 +564,30 @@ class _RequirementFormSheetState extends State<_RequirementFormSheet> {
                 ),
                 const SizedBox(height: AppTheme.spacingL),
 
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Scoring Criteria (1-10)',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Rate each criterion from 1-10. Higher values indicate greater importance, impact, or urgency. These scores are used to calculate priority.',
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 20,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spacingS),
                 Text(
-                  'Scoring Criteria (1-10)',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  'Optional: Rate each criterion to help prioritize requirements',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: AppTheme.spacingM),
 
@@ -539,18 +596,43 @@ class _RequirementFormSheetState extends State<_RequirementFormSheet> {
                     Expanded(
                       child: TextFormField(
                         controller: _businessValueController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Business Value',
+                          helperText: 'Expected business impact (1-10)',
+                          suffixIcon: Tooltip(
+                            message: 'Measures expected business impact, revenue potential, or strategic importance. Higher = more valuable.',
+                            child: Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
                         ),
-                        keyboardType: TextInputType.number,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) =>
+                            _validateScore(value, 'Business Value'),
                       ),
                     ),
                     const SizedBox(width: AppTheme.spacingM),
                     Expanded(
                       child: TextFormField(
                         controller: _costController,
-                        decoration: const InputDecoration(labelText: 'Cost'),
-                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Cost',
+                          helperText: 'Implementation cost (1-10)',
+                          suffixIcon: Tooltip(
+                            message: 'Implementation cost. Lower = cheaper, Higher = more expensive. Note: Lower cost increases priority.',
+                            child: Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) => _validateScore(value, 'Cost'),
                       ),
                     ),
                   ],
@@ -562,16 +644,42 @@ class _RequirementFormSheetState extends State<_RequirementFormSheet> {
                     Expanded(
                       child: TextFormField(
                         controller: _riskController,
-                        decoration: const InputDecoration(labelText: 'Risk'),
-                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Risk',
+                          helperText: 'Technical/business risk (1-10)',
+                          suffixIcon: Tooltip(
+                            message: 'Technical or business risk. Lower = safer, Higher = riskier. Note: Lower risk increases priority.',
+                            child: Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) => _validateScore(value, 'Risk'),
                       ),
                     ),
                     const SizedBox(width: AppTheme.spacingM),
                     Expanded(
                       child: TextFormField(
                         controller: _urgencyController,
-                        decoration: const InputDecoration(labelText: 'Urgency'),
-                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Urgency',
+                          helperText: 'How urgent is this? (1-10)',
+                          suffixIcon: Tooltip(
+                            message: 'How urgent is this requirement? Higher = needs immediate attention.',
+                            child: Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) => _validateScore(value, 'Urgency'),
                       ),
                     ),
                   ],
@@ -580,10 +688,22 @@ class _RequirementFormSheetState extends State<_RequirementFormSheet> {
 
                 TextFormField(
                   controller: _stakeholderValueController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Stakeholder Value',
+                    helperText: 'Importance to stakeholders (1-10)',
+                    suffixIcon: Tooltip(
+                      message: 'Importance to key stakeholders, users, or customers. Higher = more important to stakeholders.',
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 18,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
                   ),
-                  keyboardType: TextInputType.number,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  validator: (value) =>
+                      _validateScore(value, 'Stakeholder Value'),
                 ),
                 const SizedBox(height: AppTheme.spacingXL),
 

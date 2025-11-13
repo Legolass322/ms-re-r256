@@ -4,9 +4,10 @@ Database service for requirements and sessions
 
 from typing import List, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime
 
-from database.models import User, Session as DBSession, Requirement as DBRequirement, PrioritizedRequirement as DBPrioritizedRequirement
+from database.models import Session as DBSession, Requirement as DBRequirement, PrioritizedRequirement as DBPrioritizedRequirement
 from models.requirement import Requirement, PrioritizedRequirement, RequirementCategory
 
 
@@ -30,6 +31,14 @@ class DatabaseService:
         """Save requirements to database"""
         db_requirements = []
         for req in requirements:
+            category = None
+            if req.category:
+                category = (
+                    req.category.value
+                    if isinstance(req.category, RequirementCategory)
+                    else str(req.category)
+                )
+
             db_req = DBRequirement(
                 session_id=session_id,
                 external_id=req.id,
@@ -40,7 +49,7 @@ class DatabaseService:
                 risk=req.risk,
                 urgency=req.urgency,
                 stakeholder_value=req.stakeholderValue,
-                category=req.category.value if req.category else None
+                category=category
             )
             db.add(db_req)
             db_requirements.append(db_req)
@@ -165,3 +174,33 @@ class DatabaseService:
             DBSession.id == session_id,
             DBSession.user_id == user_id
         ).first()
+
+    @staticmethod
+    def get_latest_session(db: Session, user_id: str) -> Optional[DBSession]:
+        """Get the most recent session for a user"""
+        return (
+            db.query(DBSession)
+            .filter(DBSession.user_id == user_id)
+            .order_by(DBSession.created_at.desc())
+            .first()
+        )
+
+    @staticmethod
+    def count_requirements(db: Session, session_id: str) -> int:
+        """Count requirements stored for a session"""
+        return (
+            db.query(func.count(DBRequirement.id))
+            .filter(DBRequirement.session_id == session_id)
+            .scalar()
+            or 0
+        )
+
+    @staticmethod
+    def count_prioritized_requirements(db: Session, session_id: str) -> int:
+        """Count prioritized requirements stored for a session"""
+        return (
+            db.query(func.count(DBPrioritizedRequirement.id))
+            .filter(DBPrioritizedRequirement.session_id == session_id)
+            .scalar()
+            or 0
+        )

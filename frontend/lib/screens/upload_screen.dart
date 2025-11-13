@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 import '../theme/app_theme.dart';
@@ -17,18 +19,19 @@ class UploadScreen extends StatefulWidget {
 }
 
 class _UploadScreenState extends State<UploadScreen> {
-  File? _selectedFile;
+  PlatformFile? _selectedFile;
 
   Future<void> _pickFile() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv', 'xlsx', 'xls'],
+        withData: true, // Load file bytes for web platform
       );
 
-      if (result != null && result.files.single.path != null) {
+      if (result != null && result.files.single.size > 0) {
         setState(() {
-          _selectedFile = File(result.files.single.path!);
+          _selectedFile = result.files.single;
         });
       }
     } catch (e) {
@@ -40,9 +43,33 @@ class _UploadScreenState extends State<UploadScreen> {
     }
   }
 
-  void _uploadFile() {
-    if (_selectedFile != null) {
-      context.read<RequirementsBloc>().add(UploadFileEvent(_selectedFile!));
+  Future<void> _uploadFile() async {
+    if (_selectedFile == null) return;
+
+    try {
+      Uint8List bytes;
+      if (kIsWeb) {
+        bytes = _selectedFile!.bytes!;
+      } else {
+        final file = File(_selectedFile!.path!);
+        bytes = await file.readAsBytes();
+      }
+
+      context.read<RequirementsBloc>().add(
+        UploadFileEvent(
+          bytes: bytes,
+          filename: _selectedFile!.name,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error reading file: $e'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
     }
   }
 
@@ -134,7 +161,7 @@ class _UploadScreenState extends State<UploadScreen> {
                                 const SizedBox(width: AppTheme.spacingS),
                                 Expanded(
                                   child: Text(
-                                    _selectedFile!.path.split('/').last,
+                                    _selectedFile!.name,
                                     style: Theme.of(
                                       context,
                                     ).textTheme.bodyLarge,

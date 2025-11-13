@@ -9,6 +9,9 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from redis.exceptions import RedisError
+
+from redis_client import get_redis_client
 
 from database import get_db, User
 from .models import UserCreate, UserLogin, Token, UserResponse
@@ -28,6 +31,47 @@ security = HTTPBearer()
 class AuthService:
     """Authentication service"""
     
+    _REDIS_USER_KEY_PREFIX = "aria:auth:user:"
+
+    @staticmethod
+    def _redis_key(username: str) -> str:
+        """Build Redis key for user credentials."""
+        return f"{AuthService._REDIS_USER_KEY_PREFIX}{username.lower()}"
+
+    @staticmethod
+    def _cache_user_credentials(
+        username: str,
+        hashed_password: str,
+        email: str,
+        user_id: str,
+    ) -> None:
+        """Persist hashed password and basic metadata in Redis."""
+        try:
+            client = get_redis_client()
+            client.hset(
+                AuthService._redis_key(username),
+                mapping={
+                    "hashed_password": hashed_password,
+                    "email": email,
+                    "user_id": user_id,
+                },
+            )
+        except RedisError:
+            # Do not block registration/login if Redis is unavailable
+            pass
+
+    @staticmethod
+    def _get_cached_password(username: str) -> Optional[str]:
+        """Retrieve hashed password from Redis cache."""
+        try:
+            client = get_redis_client()
+            return client.hget(
+                AuthService._redis_key(username),
+                "hashed_password",
+            )
+        except RedisError:
+            return None
+
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash"""
@@ -69,11 +113,26 @@ class AuthService:
     @staticmethod
     def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
         """Authenticate user with username and password"""
+        cached_hash = AuthService._get_cached_password(username)
         user = db.query(User).filter(User.username == username).first()
         if not user:
             return None
-        if not AuthService.verify_password(password, user.hashed_password):
+
+        hashed_password = cached_hash or user.hashed_password
+        if not hashed_password:
             return None
+
+        if not AuthService.verify_password(password, hashed_password):
+            return None
+
+        if not cached_hash:
+            AuthService._cache_user_credentials(
+                username=username,
+                hashed_password=hashed_password,
+                email=user.email,
+                user_id=user.id,
+            )
+
         return user
     
     @staticmethod
@@ -102,6 +161,14 @@ class AuthService:
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
+
+        AuthService._cache_user_credentials(
+            username=db_user.username,
+            hashed_password=hashed_password,
+            email=db_user.email,
+            user_id=db_user.id,
+        )
+
         return db_user
 
 
@@ -129,3 +196,15 @@ async def get_current_user(
         raise credentials_exception
     
     return user
+
+
+async def get_current_admin_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Get current authenticated admin user"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user

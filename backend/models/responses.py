@@ -38,6 +38,41 @@ class RequirementsList(BaseModel):
     requirements: List[Requirement] = Field(..., description="List of requirements")
 
 
+class SessionSummary(BaseModel):
+    id: str = Field(..., description="Session identifier")
+    name: Optional[str] = Field(None, description="Optional session name")
+    createdAt: datetime = Field(..., description="Creation timestamp")
+    updatedAt: Optional[datetime] = Field(None, description="Last update timestamp")
+    requirementsCount: int = Field(..., description="Number of requirements in the session")
+    prioritizedCount: int = Field(..., description="Number of prioritized requirements")
+
+
+class SessionsResponse(BaseModel):
+    sessions: List[SessionSummary] = Field(..., description="List of user sessions")
+
+
+class SessionDetails(BaseModel):
+    sessionId: str = Field(..., description="Session identifier")
+    name: Optional[str] = Field(None, description="Optional session name")
+    createdAt: datetime = Field(..., description="Creation timestamp")
+    updatedAt: Optional[datetime] = Field(None, description="Last update timestamp")
+    requirements: List[Requirement] = Field(..., description="Requirements saved in the session")
+    prioritizedRequirements: List[PrioritizedRequirement] = Field(
+        default_factory=list,
+        description="Prioritized requirements saved in the session",
+    )
+
+
+class ChatGPTAnalysisRequest(BaseModel):
+    sessionId: str = Field(..., description="Session ID to analyze")
+    prompt: Optional[str] = Field(None, description="Optional additional context for ChatGPT")
+
+
+class ChatGPTAnalysisResponse(BaseModel):
+    sessionId: str = Field(..., description="Session analyzed")
+    summary: str = Field(..., description="ChatGPT generated analysis summary")
+
+
 class PrioritizationRequest(BaseModel):
     sessionId: str = Field(..., description="Session ID containing requirements to prioritize")
     weights: Optional[Weights] = Field(None, description="Custom weights for scoring criteria")
@@ -48,3 +83,15 @@ class PrioritizationResponse(BaseModel):
     prioritizedRequirements: List[PrioritizedRequirement] = Field(..., description="Requirements sorted by priority (highest first)")
     processingTimeMs: int = Field(..., description="Processing time in milliseconds")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata about the analysis")
+
+
+class LLMConfigRequest(BaseModel):
+    apiKey: str = Field(..., description="LLM API key")
+    baseUrl: str = Field(default="https://api.openai.com/v1", description="LLM API base URL")
+    model: str = Field(default="gpt-4o-mini", description="LLM model name")
+
+
+class LLMConfigResponse(BaseModel):
+    baseUrl: str = Field(..., description="LLM API base URL")
+    model: str = Field(..., description="LLM model name")
+    hasApiKey: bool = Field(..., description="Whether API key is configured (key value is not returned for security)")

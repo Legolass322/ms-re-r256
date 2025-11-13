@@ -13,22 +13,27 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import os
 import tempfile
+import logging
 import pandas as pd
 from pathlib import Path
 from sqlalchemy.orm import Session
 
 from models import (
-    Requirement, PrioritizedRequirement, UploadResponse, 
+    Requirement, PrioritizedRequirement, UploadResponse,
     CreateRequirementsRequest, CreateRequirementsResponse,
     RequirementsList, PrioritizationRequest, PrioritizationResponse,
-    Error, HealthResponse, Weights
+    Error, HealthResponse, Weights, SessionSummary, SessionsResponse,
+    SessionDetails, ChatGPTAnalysisRequest, ChatGPTAnalysisResponse,
+    LLMConfigRequest, LLMConfigResponse
 )
 from services.prioritization_service import PrioritizationService
 from services.file_service import FileService
 from services.export_service import ExportService
 from services.database_service import DatabaseService
+from services.analysis_service import AnalysisService
+from services.llm_config_service import LLMConfigService
 from database import get_db, engine, Base
-from auth import AuthService, get_current_user, UserCreate, UserLogin, Token, UserResponse
+from auth import AuthService, get_current_user, get_current_admin_user, UserCreate, UserLogin, Token, UserResponse
 from database.models import User
 
 # Initialize FastAPI app
@@ -56,9 +61,22 @@ prioritization_service = PrioritizationService()
 file_service = FileService()
 export_service = ExportService()
 database_service = DatabaseService()
+llm_config_service = LLMConfigService()
+# AnalysisService will be initialized dynamically with config from DB
+analysis_service = None
+
+# Initialize logger first
+logger = logging.getLogger("aria.backend")
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+
+# Run migrations
+try:
+    from migrations.add_admin_and_llm_config import run_migration
+    run_migration()
+except Exception as e:
+    logger.warning(f"Migration failed (may already be applied): {e}")
 
 # ============================================================================
 # AUTHENTICATION ENDPOINTS
@@ -73,12 +91,14 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
             id=user.id,
             email=user.email,
             username=user.username,
-            is_active=user.is_active,
-            created_at=user.created_at
+            isActive=user.is_active,
+            isAdmin=user.is_admin,
+            createdAt=user.created_at
         )
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Registration failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Registration failed: {str(e)}"
@@ -101,9 +121,9 @@ async def login(user_login: UserLogin, db: Session = Depends(get_db)):
     )
     
     return Token(
-        access_token=access_token,
-        token_type="bearer",
-        expires_in=1800  # 30 minutes in seconds
+        accessToken=access_token,
+        tokenType="bearer",
+        expiresIn=1800  # 30 minutes in seconds
     )
 
 @app.get("/auth/me", response_model=UserResponse, tags=["authentication"])
@@ -113,8 +133,9 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         id=current_user.id,
         email=current_user.email,
         username=current_user.username,
-        is_active=current_user.is_active,
-        created_at=current_user.created_at
+        isActive=current_user.is_active,
+        isAdmin=current_user.is_admin,
+        createdAt=current_user.created_at
     )
 
 # ============================================================================
@@ -182,6 +203,7 @@ async def upload_requirements(
         )
         
     except Exception as e:
+        logger.exception("Upload requirements failed")
         raise HTTPException(
             status_code=400,
             detail=Error(
@@ -221,6 +243,7 @@ async def create_requirements(
         )
         
     except Exception as e:
+        logger.exception("Create requirements failed")
         raise HTTPException(
             status_code=400,
             detail=Error(
@@ -307,7 +330,7 @@ async def analyze_prioritization(
                 "totalRequirements": len(requirements),
                 "averageScore": sum(r.priorityScore for r in prioritized_requirements) / len(prioritized_requirements),
                 "modelVersion": "1.0.0",
-                "weightsUsed": weights.dict()
+                "weightsUsed": weights.model_dump() if hasattr(weights, 'model_dump') else weights.dict()
             }
         )
         
@@ -359,6 +382,70 @@ async def get_prioritization(
             "weightsUsed": {}
         }
     )
+
+
+@app.post("/prioritization/chatgpt", response_model=ChatGPTAnalysisResponse, tags=["prioritization"])
+async def analyze_with_chatgpt(
+    request: ChatGPTAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generate prioritization insights using OpenAI ChatGPT."""
+    session = database_service.get_session(db, request.sessionId, current_user.id)
+    if not session:
+        raise HTTPException(
+            status_code=404,
+            detail=Error(
+                error="SESSION_NOT_FOUND",
+                message="Session not found or access denied"
+            ).dict()
+        )
+
+    requirements = database_service.get_requirements(db, request.sessionId)
+    if not requirements:
+        raise HTTPException(
+            status_code=400,
+            detail=Error(
+                error="NO_REQUIREMENTS",
+                message="No requirements found in session"
+            ).dict()
+        )
+
+    try:
+        # Get LLM config from database
+        llm_config = llm_config_service.get_config(db)
+        if not llm_config:
+            raise HTTPException(
+                status_code=400,
+                detail=Error(
+                    error="LLM_CONFIG_NOT_SET",
+                    message="LLM configuration is not set. Please configure it in admin panel."
+                ).dict()
+            )
+        
+        # Create AnalysisService with config from DB
+        service = AnalysisService(
+            api_key=llm_config.api_key,
+            base_url=llm_config.base_url,
+            model=llm_config.model
+        )
+        
+        summary = await service.analyze_requirements(
+            requirements,
+            request.prompt,
+        )
+        return ChatGPTAnalysisResponse(sessionId=request.sessionId, summary=summary)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("ChatGPT analysis failed")
+        raise HTTPException(
+            status_code=500,
+            detail=Error(
+                error="ANALYSIS_FAILED",
+                message=str(exc)
+            ).dict()
+        )
 
 # ============================================================================
 # EXPORT ENDPOINTS
@@ -442,24 +529,164 @@ async def export_html(
 # USER SESSIONS ENDPOINTS
 # ============================================================================
 
-@app.get("/sessions", tags=["sessions"])
+@app.get("/sessions", response_model=SessionsResponse, tags=["sessions"])
 async def get_user_sessions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get all sessions for the current user"""
     sessions = database_service.get_user_sessions(db, current_user.id)
-    return {
-        "sessions": [
-            {
-                "id": session.id,
-                "name": session.name,
-                "created_at": session.created_at.isoformat(),
-                "updated_at": session.updated_at.isoformat() if session.updated_at else None
-            }
-            for session in sessions
-        ]
-    }
+    summaries = []
+    for session in sessions:
+        requirements_count = database_service.count_requirements(db, session.id)
+        prioritized_count = database_service.count_prioritized_requirements(db, session.id)
+        summaries.append(
+            SessionSummary(
+                id=session.id,
+                name=session.name,
+                createdAt=session.created_at,
+                updatedAt=session.updated_at,
+                requirementsCount=requirements_count,
+                prioritizedCount=prioritized_count,
+            )
+        )
+
+    return SessionsResponse(sessions=summaries)
+
+
+@app.get("/sessions/latest", response_model=SessionDetails, tags=["sessions"])
+async def get_latest_session(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the most recent session with requirements and prioritization results"""
+    session = database_service.get_latest_session(db, current_user.id)
+    if not session:
+        raise HTTPException(
+            status_code=404,
+            detail=Error(
+                error="NO_SESSIONS",
+                message="No sessions found for this user"
+            ).dict()
+        )
+
+    requirements = database_service.get_requirements(db, session.id)
+    prioritized = database_service.get_prioritized_requirements(db, session.id)
+
+    return SessionDetails(
+        sessionId=session.id,
+        name=session.name,
+        createdAt=session.created_at,
+        updatedAt=session.updated_at,
+        requirements=requirements,
+        prioritizedRequirements=prioritized,
+    )
+
+
+@app.get("/sessions/{sessionId}", response_model=SessionDetails, tags=["sessions"])
+async def get_session_details(
+    sessionId: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get requirements and prioritization results for a specific session"""
+    session = database_service.get_session(db, sessionId, current_user.id)
+    if not session:
+        raise HTTPException(
+            status_code=404,
+            detail=Error(
+                error="SESSION_NOT_FOUND",
+                message="Session not found or access denied"
+            ).dict()
+        )
+
+    requirements = database_service.get_requirements(db, sessionId)
+    prioritized = database_service.get_prioritized_requirements(db, sessionId)
+
+    return SessionDetails(
+        sessionId=session.id,
+        name=session.name,
+        createdAt=session.created_at,
+        updatedAt=session.updated_at,
+        requirements=requirements,
+        prioritizedRequirements=prioritized,
+    )
+
+# ============================================================================
+# ADMIN ENDPOINTS
+# ============================================================================
+
+@app.get("/admin/llm-config", response_model=LLMConfigResponse, tags=["admin"])
+async def get_llm_config(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get current LLM configuration (admin only)"""
+    config = llm_config_service.get_config(db)
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail=Error(
+                error="CONFIG_NOT_FOUND",
+                message="LLM configuration not set"
+            ).dict()
+        )
+    
+    return LLMConfigResponse(
+        baseUrl=config.base_url,
+        model=config.model,
+        hasApiKey=bool(config.api_key)
+    )
+
+
+@app.put("/admin/llm-config", response_model=LLMConfigResponse, tags=["admin"])
+async def update_llm_config(
+    request: LLMConfigRequest,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update LLM configuration (admin only)"""
+    try:
+        config = llm_config_service.create_or_update_config(
+            db=db,
+            api_key=request.apiKey,
+            base_url=request.baseUrl,
+            model=request.model
+        )
+        
+        return LLMConfigResponse(
+            baseUrl=config.base_url,
+            model=config.model,
+            hasApiKey=bool(config.api_key)
+        )
+    except Exception as exc:
+        logger.exception("Failed to update LLM config")
+        raise HTTPException(
+            status_code=500,
+            detail=Error(
+                error="UPDATE_FAILED",
+                message=str(exc)
+            ).dict()
+        )
+
+
+@app.delete("/admin/llm-config", tags=["admin"])
+async def delete_llm_config(
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Delete LLM configuration (admin only)"""
+    deleted = llm_config_service.delete_config(db)
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail=Error(
+                error="CONFIG_NOT_FOUND",
+                message="LLM configuration not found"
+            ).dict()
+        )
+    
+    return {"message": "LLM configuration deleted successfully"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)

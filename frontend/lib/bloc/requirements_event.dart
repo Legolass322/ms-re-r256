@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import '../models/requirement.dart';
 
 abstract class RequirementsEvent extends Equatable {
@@ -10,12 +11,16 @@ abstract class RequirementsEvent extends Equatable {
 }
 
 class UploadFileEvent extends RequirementsEvent {
-  final File file;
+  final Uint8List bytes;
+  final String filename;
 
-  const UploadFileEvent(this.file);
+  const UploadFileEvent({
+    required this.bytes,
+    required this.filename,
+  });
 
   @override
-  List<Object?> get props => [file];
+  List<Object?> get props => [bytes, filename];
 }
 
 class CreateRequirementsEvent extends RequirementsEvent {
@@ -66,4 +71,21 @@ class ExportHtmlEvent extends RequirementsEvent {
 
 class ResetEvent extends RequirementsEvent {
   const ResetEvent();
+}
+
+class RestoreLatestSessionEvent extends RequirementsEvent {
+  const RestoreLatestSessionEvent();
+}
+
+class ChatGPTAnalyzeEvent extends RequirementsEvent {
+  final String sessionId;
+  final String? prompt;
+
+  const ChatGPTAnalyzeEvent({
+    required this.sessionId,
+    this.prompt,
+  });
+
+  @override
+  List<Object?> get props => [sessionId, prompt];
 }
