@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../theme/app_theme.dart';
 import '../models/prioritized_requirement.dart';
 import '../models/requirement.dart';
@@ -7,8 +8,10 @@ import '../models/api_response.dart';
 import '../bloc/requirements_bloc.dart';
 import '../bloc/requirements_event.dart';
 import '../bloc/requirements_state.dart';
+import '../widgets/dependency_graph.dart';
+import '../utils/dependency_analyzer.dart';
 
-class ResultsScreen extends StatelessWidget {
+class ResultsScreen extends StatefulWidget {
   final String sessionId;
   final List<PrioritizedRequirement> prioritizedRequirements;
   final PrioritizationMetadata? metadata;
@@ -23,8 +26,28 @@ class ResultsScreen extends StatelessWidget {
   });
 
   @override
+  State<ResultsScreen> createState() => _ResultsScreenState();
+}
+
+class _ResultsScreenState extends State<ResultsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (prioritizedRequirements.isEmpty) {
+    if (widget.prioritizedRequirements.isEmpty) {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Prioritization Results'),
@@ -61,14 +84,15 @@ class ResultsScreen extends StatelessWidget {
         ),
         elevation: 0,
         backgroundColor: Colors.white,
+        foregroundColor: AppTheme.textPrimary,
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.download_outlined),
             onSelected: (value) {
               if (value == 'csv') {
-                context.read<RequirementsBloc>().add(ExportCsvEvent(sessionId));
+                context.read<RequirementsBloc>().add(ExportCsvEvent(widget.sessionId));
               } else if (value == 'html') {
-                context.read<RequirementsBloc>().add(ExportHtmlEvent(sessionId));
+                context.read<RequirementsBloc>().add(ExportHtmlEvent(widget.sessionId));
               }
             },
             itemBuilder: (context) => [
@@ -95,6 +119,49 @@ class ResultsScreen extends StatelessWidget {
             ],
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                height: 1,
+                color: AppTheme.textTertiary.withOpacity(0.2),
+              ),
+              TabBar(
+                controller: _tabController,
+                isScrollable: false,
+                indicatorColor: AppTheme.primaryColor,
+                labelColor: AppTheme.primaryColor,
+                unselectedLabelColor: AppTheme.textSecondary,
+                indicatorWeight: 3,
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.normal,
+                ),
+                tabs: const [
+                  Tab(
+                    icon: Icon(Icons.list, size: 20),
+                    text: 'List',
+                  ),
+                  Tab(
+                    icon: Icon(Icons.bar_chart, size: 20),
+                    text: 'Chart',
+                  ),
+                  Tab(
+                    icon: Icon(Icons.account_tree, size: 20),
+                    text: 'Dependencies',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
       body: BlocListener<RequirementsBloc, RequirementsState>(
         listener: (context, state) {
@@ -132,7 +199,15 @@ class ResultsScreen extends StatelessWidget {
           children: [
             _buildStatsBar(),
             Expanded(
-              child: _buildRequirementsList(),
+              child: TabBarView(
+                controller: _tabController,
+                physics: const BouncingScrollPhysics(),
+                children: [
+                  _buildRequirementsList(),
+                  _buildChartView(),
+                  _buildDependenciesView(),
+                ],
+              ),
             ),
           ],
         ),
@@ -162,7 +237,7 @@ class ResultsScreen extends StatelessWidget {
             child: _StatItem(
               icon: Icons.check_circle_outline,
               label: 'Requirements',
-              value: '${prioritizedRequirements.length}',
+              value: '${widget.prioritizedRequirements.length}',
               color: AppTheme.primaryColor,
             ),
           ),
@@ -171,17 +246,17 @@ class ResultsScreen extends StatelessWidget {
             child: _StatItem(
               icon: Icons.speed,
               label: 'Processing Time',
-              value: '${processingTimeMs}ms',
+              value: '${widget.processingTimeMs}ms',
               color: AppTheme.accentColor,
             ),
           ),
-          if (metadata?.averageScore != null) ...[
+          if (widget.metadata?.averageScore != null) ...[
             const SizedBox(width: 12),
             Expanded(
               child: _StatItem(
                 icon: Icons.analytics_outlined,
                 label: 'Avg Score',
-                value: metadata!.averageScore!.toStringAsFixed(1),
+                value: widget.metadata!.averageScore!.toStringAsFixed(1),
                 color: AppTheme.secondaryColor,
               ),
             ),
@@ -192,8 +267,9 @@ class ResultsScreen extends StatelessWidget {
   }
 
   Widget _buildRequirementsList() {
-    final sortedRequirements = List<PrioritizedRequirement>.from(prioritizedRequirements)
-      ..sort((a, b) => a.rank.compareTo(b.rank));
+    final sortedRequirements =
+        List<PrioritizedRequirement>.from(widget.prioritizedRequirements)
+          ..sort((a, b) => a.rank.compareTo(b.rank));
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -208,6 +284,480 @@ class ResultsScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildChartView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Priority Score Chart
+          _buildPriorityScoreChart(),
+          const SizedBox(height: 24),
+          // Metrics Comparison Chart
+          _buildMetricsChart(),
+          const SizedBox(height: 24),
+          // Category Distribution
+          _buildCategoryChart(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriorityScoreChart() {
+    final sorted = List<PrioritizedRequirement>.from(widget.prioritizedRequirements)
+      ..sort((a, b) => a.rank.compareTo(b.rank));
+    
+    final spots = sorted.asMap().entries.map((entry) {
+      return FlSpot(entry.key.toDouble(), entry.value.priorityScore);
+    }).toList();
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Priority Scores by Rank',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 300,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (value) {
+                      return FlLine(
+                        color: AppTheme.textTertiary.withOpacity(0.2),
+                        strokeWidth: 1,
+                      );
+                    },
+                  ),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          if (value.toInt() % 5 == 0 && value.toInt() < sorted.length) {
+                            return Text(
+                              '#${value.toInt() + 1}',
+                              style: TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 12,
+                              ),
+                            );
+                          }
+                          return const Text('');
+                        },
+                        reservedSize: 30,
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            value.toInt().toString(),
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 12,
+                            ),
+                          );
+                        },
+                        reservedSize: 40,
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(
+                    show: true,
+                    border: Border.all(
+                      color: AppTheme.textTertiary.withOpacity(0.3),
+                    ),
+                  ),
+                  minX: 0,
+                  maxX: (sorted.length - 1).toDouble(),
+                  minY: 0,
+                  maxY: 100,
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      color: AppTheme.primaryColor,
+                      barWidth: 3,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: AppTheme.primaryColor.withOpacity(0.1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricsChart() {
+    final sorted = List<PrioritizedRequirement>.from(widget.prioritizedRequirements)
+      ..sort((a, b) => a.rank.compareTo(b.rank));
+    
+    // Группируем по топ-10 для читаемости
+    final top10 = sorted.take(10).toList();
+    
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Top 10 Requirements Metrics',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 300,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: 10,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (value) {
+                      return FlLine(
+                        color: AppTheme.textTertiary.withOpacity(0.2),
+                        strokeWidth: 1,
+                      );
+                    },
+                  ),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
+                          if (index < top10.length) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                '#${top10[index].rank}',
+                                style: TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 10,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            );
+                          }
+                          return const Text('');
+                        },
+                        reservedSize: 40,
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            value.toInt().toString(),
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 12,
+                            ),
+                          );
+                        },
+                        reservedSize: 40,
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(
+                    show: true,
+                    border: Border.all(
+                      color: AppTheme.textTertiary.withOpacity(0.3),
+                    ),
+                  ),
+                  barGroups: top10.asMap().entries.map((entry) {
+                    final req = entry.value;
+                    return BarChartGroupData(
+                      x: entry.key,
+                      groupVertically: false,
+                      barRods: [
+                        BarChartRodData(
+                          toY: req.businessValue ?? 0,
+                          color: AppTheme.successColor,
+                          width: 12,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(4),
+                          ),
+                        ),
+                        BarChartRodData(
+                          toY: req.cost ?? 0,
+                          color: AppTheme.infoColor,
+                          width: 12,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(4),
+                          ),
+                        ),
+                        BarChartRodData(
+                          toY: req.risk ?? 0,
+                          color: AppTheme.errorColor,
+                          width: 12,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(4),
+                          ),
+                        ),
+                        BarChartRodData(
+                          toY: req.urgency ?? 0,
+                          color: AppTheme.warningColor,
+                          width: 12,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(4),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                  groupsSpace: 20,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                _ChartLegendItem(color: AppTheme.successColor, label: 'Business Value'),
+                _ChartLegendItem(color: AppTheme.infoColor, label: 'Cost'),
+                _ChartLegendItem(color: AppTheme.errorColor, label: 'Risk'),
+                _ChartLegendItem(color: AppTheme.warningColor, label: 'Urgency'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryChart() {
+    final categoryCounts = <RequirementCategory, int>{};
+    for (var req in widget.prioritizedRequirements) {
+      if (req.category != null) {
+        categoryCounts[req.category!] = (categoryCounts[req.category] ?? 0) + 1;
+      }
+    }
+
+    if (categoryCounts.isEmpty) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: Text(
+              'No category data available',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final pieChartSections = categoryCounts.entries.map((entry) {
+      final color = _getCategoryColor(entry.key);
+      
+      return PieChartSectionData(
+        value: entry.value.toDouble(),
+        title: '${entry.value}',
+        color: color,
+        radius: 80,
+        titleStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      );
+    }).toList();
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Category Distribution',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 200,
+                    child: PieChart(
+                      PieChartData(
+                        sections: pieChartSections,
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 40,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: categoryCounts.entries.map((entry) {
+                      final color = _getCategoryColor(entry.key);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _categoryToString(entry.key),
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                            Text(
+                              '${entry.value}',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDependenciesView() {
+    // Анализируем зависимости
+    final dependencies = DependencyAnalyzer.analyzeDependencies(
+      widget.prioritizedRequirements,
+    );
+
+    return DependencyGraph(
+      requirements: widget.prioritizedRequirements,
+      dependencies: dependencies,
+    );
+  }
+
+  Color _getCategoryColor(RequirementCategory category) {
+    switch (category) {
+      case RequirementCategory.feature:
+        return AppTheme.primaryColor;
+      case RequirementCategory.enhancement:
+        return AppTheme.secondaryColor;
+      case RequirementCategory.bugFix:
+        return AppTheme.errorColor;
+      case RequirementCategory.technical:
+        return AppTheme.infoColor;
+      case RequirementCategory.compliance:
+        return AppTheme.successColor;
+    }
+  }
+
+  String _categoryToString(RequirementCategory category) {
+    switch (category) {
+      case RequirementCategory.feature:
+        return 'Feature';
+      case RequirementCategory.enhancement:
+        return 'Enhancement';
+      case RequirementCategory.bugFix:
+        return 'Bug Fix';
+      case RequirementCategory.technical:
+        return 'Technical';
+      case RequirementCategory.compliance:
+        return 'Compliance';
+    }
+  }
+}
+
+class _ChartLegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _ChartLegendItem({
+    required this.color,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
     );
   }
 }
