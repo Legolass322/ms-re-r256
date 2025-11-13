@@ -88,18 +88,8 @@ class AppTheme {
         ),
       ),
 
-      // Card Theme
-      cardTheme: CardThemeData(
-        elevation: 0,
-        color: cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radiusM),
-        ),
-        margin: const EdgeInsets.symmetric(
-          horizontal: spacingM,
-          vertical: spacingS,
-        ),
-      ),
+      // Card Theme - removed for Flutter 3.24.3 compatibility
+      // Card styles are applied directly in widgets using AppTheme.cardShadow
 
       // Button Themes
       elevatedButtonTheme: ElevatedButtonThemeData(

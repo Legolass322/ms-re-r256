@@ -3,7 +3,7 @@ Database configuration and models
 """
 
 from .database import get_db, engine, Base
-from .models import User, Session, Requirement as DBRequirement, PrioritizedRequirement as DBPrioritizedRequirement
+from .models import User, Session, Requirement as DBRequirement, PrioritizedRequirement as DBPrioritizedRequirement, LLMConfig
 
 __all__ = [
     "get_db", 
@@ -12,5 +12,6 @@ __all__ = [
     "User",
     "Session", 
     "DBRequirement",
-    "DBPrioritizedRequirement"
+    "DBPrioritizedRequirement",
+    "LLMConfig"
 ]

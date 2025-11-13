@@ -1,7 +1,7 @@
 # ARIA - Advanced Requirements Intelligence & Analytics
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![Flutter](https://img.shields.io/badge/Flutter-3.9.2-02569B?logo=flutter)
+![Flutter](https://img.shields.io/badge/Flutter-3.24.3-02569B?logo=flutter)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ARIA is an AI-powered requirements prioritization tool that automates multi-criteria analysis, enabling rapid and objective prioritization for mid-sized projects with 50-100+ requirements.
@@ -55,7 +55,7 @@ See [backend/README.md](backend/README.md) for implementation guide.
 ## 📦 Project Components
 
 ### Frontend
-- **Technology**: Flutter 3.9.2
+- **Technology**: Flutter 3.24.3
 - **State Management**: BLoC Pattern
 - **Location**: `frontend/`
 - **Documentation**: [frontend/README.md](frontend/README.md)
@@ -71,7 +71,7 @@ See [backend/README.md](backend/README.md) for implementation guide.
 ### Frontend Stack
 
 ```
-Flutter 3.9.2
+Flutter 3.24.3
 ├── State Management: BLoC Pattern
 ├── HTTP Client: Dio
 ├── Charts: FL Chart

@@ -84,6 +84,37 @@ class PrioritizationComplete extends RequirementsState {
   ];
 }
 
+class WorkspaceLoaded extends RequirementsState {
+  final String sessionId;
+  final String? name;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  final List<Requirement> requirements;
+  final List<PrioritizedRequirement> prioritizedRequirements;
+
+  const WorkspaceLoaded({
+    required this.sessionId,
+    this.name,
+    required this.createdAt,
+    this.updatedAt,
+    required this.requirements,
+    required this.prioritizedRequirements,
+  });
+
+  bool get hasRequirements => requirements.isNotEmpty;
+  bool get hasPrioritizedResults => prioritizedRequirements.isNotEmpty;
+
+  @override
+  List<Object?> get props => [
+        sessionId,
+        name,
+        createdAt,
+        updatedAt,
+        requirements,
+        prioritizedRequirements,
+      ];
+}
+
 class ExportSuccess extends RequirementsState {
   final String data;
   final String format;
@@ -92,6 +123,19 @@ class ExportSuccess extends RequirementsState {
 
   @override
   List<Object?> get props => [data, format];
+}
+
+class ChatGPTAnalysisComplete extends RequirementsState {
+  final String sessionId;
+  final String summary;
+
+  const ChatGPTAnalysisComplete({
+    required this.sessionId,
+    required this.summary,
+  });
+
+  @override
+  List<Object?> get props => [sessionId, summary];
 }
 
 class RequirementsError extends RequirementsState {

@@ -1,11 +1,8 @@
-import 'package:json_annotation/json_annotation.dart';
-import 'package:equatable/equatable.dart';
 import 'requirement.dart';
 
-part 'prioritized_requirement.g.dart';
-
-@JsonSerializable()
-class PrioritizedRequirement extends Equatable {
+// Removed @JsonSerializable(), fromJson/toJson, and Equatable inheritance to avoid type errors in Flutter Web
+// All deserialization is now done manually in aria_api_client.dart
+class PrioritizedRequirement {
   final String id;
   final String title;
   final String description;
@@ -36,25 +33,6 @@ class PrioritizedRequirement extends Equatable {
     this.reasoning,
   });
 
-  factory PrioritizedRequirement.fromJson(Map<String, dynamic> json) =>
-      _$PrioritizedRequirementFromJson(json);
-
-  Map<String, dynamic> toJson() => _$PrioritizedRequirementToJson(this);
-
-  @override
-  List<Object?> get props => [
-    id,
-    title,
-    description,
-    businessValue,
-    cost,
-    risk,
-    urgency,
-    stakeholderValue,
-    category,
-    priorityScore,
-    rank,
-    confidence,
-    reasoning,
-  ];
+  // Removed fromJson/toJson methods and Equatable - use manual deserialization in aria_api_client.dart
+  // Removed props getter as we no longer extend Equatable
 }

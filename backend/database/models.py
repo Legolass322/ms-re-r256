@@ -19,6 +19,7 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False, nullable=False)  # Admin flag
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
@@ -80,3 +81,15 @@ class PrioritizedRequirement(Base):
     # Relationships
     session = relationship("Session", back_populates="prioritized_requirements")
     requirement = relationship("Requirement", back_populates="prioritized_requirements")
+
+
+class LLMConfig(Base):
+    """LLM configuration model for storing API settings"""
+    __tablename__ = "llm_config"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    api_key = Column(String, nullable=False)  # Encrypted API key
+    base_url = Column(String, nullable=False, default="https://api.openai.com/v1")
+    model = Column(String, nullable=False, default="gpt-4o-mini")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

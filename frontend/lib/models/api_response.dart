@@ -1,11 +1,12 @@
-import 'package:json_annotation/json_annotation.dart';
 import 'package:equatable/equatable.dart';
 import 'requirement.dart';
 import 'prioritized_requirement.dart';
 
-part 'api_response.g.dart';
+// Removed part 'api_response.g.dart' and @JsonSerializable() to avoid type errors in Flutter Web
+// All parsing is now done manually in aria_api_client.dart
 
-@JsonSerializable()
+// Removed @JsonSerializable() to avoid type errors in Flutter Web
+// Manual parsing in aria_api_client.dart
 class UploadResponse extends Equatable {
   final String sessionId;
   final int requirementsCount;
@@ -19,10 +20,8 @@ class UploadResponse extends Equatable {
     this.requirements,
   });
 
-  factory UploadResponse.fromJson(Map<String, dynamic> json) =>
-      _$UploadResponseFromJson(json);
-
-  Map<String, dynamic> toJson() => _$UploadResponseToJson(this);
+  // Manual fromJson - see aria_api_client.dart
+  // Removed toJson - not needed
 
   @override
   List<Object?> get props => [
@@ -33,22 +32,25 @@ class UploadResponse extends Equatable {
   ];
 }
 
-@JsonSerializable()
+// Removed @JsonSerializable() to avoid type errors in Flutter Web
+// Manual toJson for sending requests
 class CreateRequirementsRequest extends Equatable {
   final List<Requirement> requirements;
 
   const CreateRequirementsRequest({required this.requirements});
 
-  factory CreateRequirementsRequest.fromJson(Map<String, dynamic> json) =>
-      _$CreateRequirementsRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$CreateRequirementsRequestToJson(this);
+  Map<String, dynamic> toJson() {
+    return {
+      'requirements': requirements.map((req) => req.toJson()).toList(),
+    };
+  }
 
   @override
   List<Object?> get props => [requirements];
 }
 
-@JsonSerializable()
+// Removed @JsonSerializable() to avoid type errors in Flutter Web
+// Manual parsing in aria_api_client.dart
 class CreateRequirementsResponse extends Equatable {
   final String sessionId;
   final int requirementsCount;
@@ -60,32 +62,34 @@ class CreateRequirementsResponse extends Equatable {
     this.message,
   });
 
-  factory CreateRequirementsResponse.fromJson(Map<String, dynamic> json) =>
-      _$CreateRequirementsResponseFromJson(json);
-
-  Map<String, dynamic> toJson() => _$CreateRequirementsResponseToJson(this);
+  // Manual fromJson - see aria_api_client.dart
+  // Removed toJson - not needed
 
   @override
   List<Object?> get props => [sessionId, requirementsCount, message];
 }
 
-@JsonSerializable()
+// Removed @JsonSerializable() to avoid type errors in Flutter Web
+// Manual toJson for sending requests
 class PrioritizationRequest extends Equatable {
   final String sessionId;
   final Map<String, double>? weights;
 
   const PrioritizationRequest({required this.sessionId, this.weights});
 
-  factory PrioritizationRequest.fromJson(Map<String, dynamic> json) =>
-      _$PrioritizationRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$PrioritizationRequestToJson(this);
+  Map<String, dynamic> toJson() {
+    return {
+      'sessionId': sessionId,
+      if (weights != null) 'weights': weights,
+    };
+  }
 
   @override
   List<Object?> get props => [sessionId, weights];
 }
 
-@JsonSerializable()
+// Removed @JsonSerializable() to avoid type errors in Flutter Web
+// All deserialization is now done manually in aria_api_client.dart
 class PrioritizationMetadata extends Equatable {
   final int? totalRequirements;
   final double? averageScore;
@@ -99,10 +103,7 @@ class PrioritizationMetadata extends Equatable {
     this.weightsUsed,
   });
 
-  factory PrioritizationMetadata.fromJson(Map<String, dynamic> json) =>
-      _$PrioritizationMetadataFromJson(json);
-
-  Map<String, dynamic> toJson() => _$PrioritizationMetadataToJson(this);
+  // Removed fromJson/toJson methods - use manual deserialization in aria_api_client.dart
 
   @override
   List<Object?> get props => [
@@ -113,7 +114,8 @@ class PrioritizationMetadata extends Equatable {
   ];
 }
 
-@JsonSerializable()
+// Removed @JsonSerializable() to avoid type errors in Flutter Web
+// All deserialization is now done manually in aria_api_client.dart
 class PrioritizationResponse extends Equatable {
   final String sessionId;
   final List<PrioritizedRequirement> prioritizedRequirements;
@@ -127,10 +129,7 @@ class PrioritizationResponse extends Equatable {
     this.metadata,
   });
 
-  factory PrioritizationResponse.fromJson(Map<String, dynamic> json) =>
-      _$PrioritizationResponseFromJson(json);
-
-  Map<String, dynamic> toJson() => _$PrioritizationResponseToJson(this);
+  // Removed fromJson/toJson methods - use manual deserialization in aria_api_client.dart
 
   @override
   List<Object?> get props => [
@@ -141,7 +140,8 @@ class PrioritizationResponse extends Equatable {
   ];
 }
 
-@JsonSerializable()
+// Removed @JsonSerializable() to avoid type errors in Flutter Web
+// Manual parsing in aria_api_client.dart
 class ApiError extends Equatable {
   final String error;
   final String message;
@@ -149,10 +149,8 @@ class ApiError extends Equatable {
 
   const ApiError({required this.error, required this.message, this.details});
 
-  factory ApiError.fromJson(Map<String, dynamic> json) =>
-      _$ApiErrorFromJson(json);
-
-  Map<String, dynamic> toJson() => _$ApiErrorToJson(this);
+  // Manual fromJson - see aria_api_client.dart
+  // Removed toJson - not needed
 
   @override
   List<Object?> get props => [error, message, details];
