@@ -10,6 +10,8 @@ import '../bloc/requirements_event.dart';
 import '../bloc/requirements_state.dart';
 import '../widgets/dependency_graph.dart';
 import '../utils/dependency_analyzer.dart';
+import 'file_saver_io.dart'
+    if (dart.library.html) 'file_saver_web.dart';
 
 class ResultsScreen extends StatefulWidget {
   final String sessionId;
@@ -85,40 +87,6 @@ class _ResultsScreenState extends State<ResultsScreen>
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: AppTheme.textPrimary,
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.download_outlined),
-            onSelected: (value) {
-              if (value == 'csv') {
-                context.read<RequirementsBloc>().add(ExportCsvEvent(widget.sessionId));
-              } else if (value == 'html') {
-                context.read<RequirementsBloc>().add(ExportHtmlEvent(widget.sessionId));
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'csv',
-                child: Row(
-                  children: [
-                    Icon(Icons.table_chart, color: AppTheme.primaryColor),
-                    SizedBox(width: 12),
-                    Text('Export as CSV'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'html',
-                child: Row(
-                  children: [
-                    Icon(Icons.web, color: AppTheme.primaryColor),
-                    SizedBox(width: 12),
-                    Text('Export as HTML'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Column(
@@ -164,40 +132,22 @@ class _ResultsScreenState extends State<ResultsScreen>
         ),
       ),
       body: BlocListener<RequirementsBloc, RequirementsState>(
-        listener: (context, state) {
+        listener: (context, state) async {
           if (state is ExportSuccess) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(Icons.check_circle, color: Colors.white),
-                    const SizedBox(width: 12),
-                    Text('Export successful: ${state.format.toUpperCase()}'),
-                  ],
-                ),
-                backgroundColor: AppTheme.successColor,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            await _handleExportSuccess(state);
           } else if (state is RequirementsError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.white),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(state.message)),
-                  ],
-                ),
-                backgroundColor: AppTheme.errorColor,
-                behavior: SnackBarBehavior.floating,
-              ),
+            _showBanner(
+              message: state.message,
+              color: AppTheme.errorColor,
+              icon: Icons.error_outline,
             );
           }
         },
         child: Column(
           children: [
+            _buildExportHeroButton(),
             _buildStatsBar(),
+            _buildPriorityHelpCard(),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
@@ -211,6 +161,142 @@ class _ResultsScreenState extends State<ResultsScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildExportHeroButton() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          onTap: _showExportSheet,
+          borderRadius: BorderRadius.circular(24),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                colors: [
+                  AppTheme.primaryColor,
+                  AppTheme.secondaryColor,
+                ],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.file_download_outlined,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Export & share',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Download CSV, HTML, or a polished PDF brief',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleExportSuccess(ExportSuccess state) async {
+    final format = state.format.toLowerCase();
+    final filename = 'aria_prioritization_${widget.sessionId}.$format';
+    try {
+      if (format == 'pdf') {
+        final bytes = state.bytes;
+        if (bytes == null || bytes.isEmpty) {
+          throw Exception('Missing PDF bytes');
+        }
+        await saveBytesFile(
+          bytes,
+          filename,
+          mimeType: 'application/pdf',
+        );
+      } else {
+        final data = state.data;
+        if (data == null || data.isEmpty) {
+          throw Exception('Missing export contents');
+        }
+        final mimeType = format == 'csv' ? 'text/csv' : 'text/html';
+        await saveTextFile(
+          data,
+          filename,
+          mimeType: mimeType,
+        );
+      }
+
+      _showBanner(
+        message: 'Export saved as $filename',
+        color: AppTheme.successColor,
+        icon: Icons.check_circle,
+      );
+    } catch (error) {
+      _showBanner(
+        message: 'Failed to save export file',
+        color: AppTheme.errorColor,
+        icon: Icons.error_outline,
+      );
+    }
+  }
+
+  void _showBanner({
+    required String message,
+    required Color color,
+    required IconData icon,
+  }) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -262,6 +348,101 @@ class _ResultsScreenState extends State<ResultsScreen>
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildPriorityHelpCard() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warningColor.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.help_center_rounded,
+                    color: AppTheme.warningColor,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'How to interpret priority',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      Text(
+                        'Scores blend business value, effort, risk, urgency, and stakeholder impact. Higher scores mean faster ROI.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textSecondary,
+                              height: 1.4,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _PriorityLevelChip(
+                  label: '80+ High Impact',
+                  description:
+                      'Quick wins with maximum value and low risk. Recommend immediate action.',
+                  color: AppTheme.successColor,
+                ),
+                _PriorityLevelChip(
+                  label: '60-79 Plan Soon',
+                  description:
+                      'Important initiatives that unlock value once capacity frees up.',
+                  color: AppTheme.primaryColor,
+                ),
+                _PriorityLevelChip(
+                  label: '< 60 Monitor',
+                  description:
+                      'Lower leverage or higher effort. Keep in backlog and revisit later.',
+                  color: AppTheme.textSecondary,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.flag_outlined, color: AppTheme.secondaryColor, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Rank shows delivery order. Priority score highlights urgency + impact strength.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSecondary,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -699,6 +880,99 @@ class _ResultsScreenState extends State<ResultsScreen>
     );
   }
 
+  void _showExportSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.textTertiary.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.download_done_rounded,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                  title: const Text(
+                    'Export your results',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    'Choose the format that fits best for sharing or reporting',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _ExportOptionTile(
+                  icon: Icons.table_chart,
+                  color: AppTheme.successColor,
+                  title: 'CSV Spreadsheet',
+                  subtitle: 'Open in Excel or Google Sheets',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context
+                        .read<RequirementsBloc>()
+                        .add(ExportCsvEvent(widget.sessionId));
+                  },
+                ),
+                _ExportOptionTile(
+                  icon: Icons.web_rounded,
+                  color: AppTheme.infoColor,
+                  title: 'Interactive HTML',
+                  subtitle: 'Share a polished web report',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context
+                        .read<RequirementsBloc>()
+                        .add(ExportHtmlEvent(widget.sessionId));
+                  },
+                ),
+                _ExportOptionTile(
+                  icon: Icons.picture_as_pdf,
+                  color: AppTheme.errorColor,
+                  title: 'PDF Brief',
+                  subtitle: 'Portable, print-ready summary',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context
+                        .read<RequirementsBloc>()
+                        .add(ExportPdfEvent(
+                          widget.sessionId,
+                          widget.prioritizedRequirements,
+                        ));
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Color _getCategoryColor(RequirementCategory category) {
     switch (category) {
       case RequirementCategory.feature:
@@ -727,6 +1001,88 @@ class _ResultsScreenState extends State<ResultsScreen>
       case RequirementCategory.compliance:
         return 'Compliance';
     }
+  }
+}
+
+class _ExportOptionTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ExportOptionTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ListTile(
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        leading: CircleAvatar(
+          backgroundColor: color.withOpacity(0.12),
+          child: Icon(icon, color: color),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+        ),
+        trailing: Icon(
+          Icons.arrow_forward_ios_rounded,
+          color: AppTheme.textTertiary,
+          size: 16,
+        ),
+      ),
+    );
+  }
+}
+
+class _PriorityLevelChip extends StatelessWidget {
+  final String label;
+  final String description;
+  final Color color;
+
+  const _PriorityLevelChip({
+    required this.label,
+    required this.description,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.4)),
+        color: color.withOpacity(0.08),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+
+    return Tooltip(
+      message: description,
+      child: chip,
+    );
   }
 }
 
@@ -903,33 +1259,37 @@ class _RequirementCard extends StatelessWidget {
                     ),
                     const Spacer(),
                     // Priority score
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        gradient: scoreGradient,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primaryColor.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.star, color: Colors.white, size: 18),
-                          const SizedBox(width: 6),
-                          Text(
-                            requirement.priorityScore.toStringAsFixed(1),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
+                    Tooltip(
+                      message:
+                          'Blended score based on value, cost, risk, urgency, and stakeholder impact.',
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          gradient: scoreGradient,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primaryColor.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star, color: Colors.white, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              requirement.priorityScore.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -968,6 +1328,8 @@ class _RequirementCard extends StatelessWidget {
                         label: 'Business',
                         value: requirement.businessValue!.toStringAsFixed(1),
                         color: AppTheme.successColor,
+                        tooltip:
+                            'Expected business impact, revenue potential, or strategic importance. Higher = more valuable.',
                       ),
                     if (requirement.urgency != null)
                       _MetricChip(
@@ -975,6 +1337,8 @@ class _RequirementCard extends StatelessWidget {
                         label: 'Urgency',
                         value: requirement.urgency!.toStringAsFixed(1),
                         color: AppTheme.warningColor,
+                        tooltip:
+                            'How fast this requirement needs attention. Higher = needs immediate action.',
                       ),
                     if (requirement.cost != null)
                       _MetricChip(
@@ -982,6 +1346,8 @@ class _RequirementCard extends StatelessWidget {
                         label: 'Cost',
                         value: requirement.cost!.toStringAsFixed(1),
                         color: AppTheme.infoColor,
+                        tooltip:
+                            'Implementation effort or expense. Lower values generally boost priority.',
                       ),
                     if (requirement.risk != null)
                       _MetricChip(
@@ -989,6 +1355,8 @@ class _RequirementCard extends StatelessWidget {
                         label: 'Risk',
                         value: requirement.risk!.toStringAsFixed(1),
                         color: AppTheme.errorColor,
+                        tooltip:
+                            'Delivery risk level. Lower risk helps a requirement rise in the ranking.',
                       ),
                     if (requirement.category != null)
                       _CategoryChip(category: requirement.category!),
@@ -1319,17 +1687,19 @@ class _MetricChip extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final String? tooltip;
 
   const _MetricChip({
     required this.icon,
     required this.label,
     required this.value,
     required this.color,
+    this.tooltip,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
@@ -1354,6 +1724,16 @@ class _MetricChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    if (tooltip == null || tooltip!.isEmpty) {
+      return chip;
+    }
+
+    return Tooltip(
+      message: tooltip!,
+      triggerMode: TooltipTriggerMode.tap,
+      child: chip,
     );
   }
 }

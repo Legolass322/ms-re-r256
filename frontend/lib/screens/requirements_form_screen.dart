@@ -89,9 +89,24 @@ class _RequirementsFormScreenState extends State<RequirementsFormScreen> {
         title: const Text('Create Requirements'),
         actions: [
           if (_requirements.isNotEmpty)
-            TextButton(
-              onPressed: _submitRequirements,
-              child: const Text('Analyze'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingS),
+              child: ElevatedButton.icon(
+                onPressed: _submitRequirements,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusL),
+                  ),
+                ),
+                icon: const Icon(Icons.auto_graph_rounded, size: 18),
+                label: const Text(
+                  'Analyze',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
             ),
         ],
       ),
@@ -202,8 +217,51 @@ class _RequirementsFormScreenState extends State<RequirementsFormScreen> {
                         const SizedBox(width: AppTheme.spacingM),
                         Expanded(
                           child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppTheme.spacingM,
+                              ),
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppTheme.radiusL),
+                              ),
+                              elevation: 6,
+                              shadowColor: AppTheme.primaryColor.withOpacity(0.45),
+                            ),
                             onPressed: _submitRequirements,
-                            child: Text('Analyze (${_requirements.length})'),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.auto_graph_rounded),
+                                const SizedBox(width: AppTheme.spacingS),
+                                Text(
+                                  'Run AI Analysis (${_requirements.length})',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(width: AppTheme.spacingS),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: const Text(
+                                    'AI Boost',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],

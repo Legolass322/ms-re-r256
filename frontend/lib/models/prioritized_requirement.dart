@@ -33,6 +33,40 @@ class PrioritizedRequirement {
     this.reasoning,
   });
 
-  // Removed fromJson/toJson methods and Equatable - use manual deserialization in aria_api_client.dart
+  Map<String, dynamic> toJson() {
+    String? categoryToString(RequirementCategory? category) {
+      if (category == null) return null;
+      switch (category) {
+        case RequirementCategory.feature:
+          return 'FEATURE';
+        case RequirementCategory.enhancement:
+          return 'ENHANCEMENT';
+        case RequirementCategory.bugFix:
+          return 'BUG_FIX';
+        case RequirementCategory.technical:
+          return 'TECHNICAL';
+        case RequirementCategory.compliance:
+          return 'COMPLIANCE';
+      }
+    }
+
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      if (businessValue != null) 'businessValue': businessValue,
+      if (cost != null) 'cost': cost,
+      if (risk != null) 'risk': risk,
+      if (urgency != null) 'urgency': urgency,
+      if (stakeholderValue != null) 'stakeholderValue': stakeholderValue,
+      if (category != null) 'category': categoryToString(category),
+      'priorityScore': priorityScore,
+      'rank': rank,
+      if (confidence != null) 'confidence': confidence,
+      if (reasoning != null && reasoning!.isNotEmpty) 'reasoning': reasoning,
+    };
+  }
+
+  // Removed fromJson methods and Equatable - use manual deserialization in aria_api_client.dart
   // Removed props getter as we no longer extend Equatable
 }

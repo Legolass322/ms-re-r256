@@ -18,6 +18,7 @@ class RequirementsBloc extends Bloc<RequirementsEvent, RequirementsState> {
     on<GetPrioritizationEvent>(_onGetPrioritization);
     on<ExportCsvEvent>(_onExportCsv);
     on<ExportHtmlEvent>(_onExportHtml);
+    on<ExportPdfEvent>(_onExportPdf);
     on<ResetEvent>(_onReset);
     on<RestoreLatestSessionEvent>(_onRestoreLatestSession);
     on<ChatGPTAnalyzeEvent>(_onChatGPTAnalyze);
@@ -197,6 +198,29 @@ class RequirementsBloc extends Bloc<RequirementsEvent, RequirementsState> {
       emit(
         RequirementsError(
           message: 'Failed to export HTML',
+          details: e.toString(),
+        ),
+      );
+    }
+  }
+
+  Future<void> _onExportPdf(
+    ExportPdfEvent event,
+    Emitter<RequirementsState> emit,
+  ) async {
+    try {
+      emit(const RequirementsLoading(message: 'Generating PDF report...'));
+
+      final pdfBytes = await apiClient.exportPdf(
+        event.sessionId,
+        event.requirements,
+      );
+
+      emit(ExportSuccess(bytes: pdfBytes, format: 'pdf'));
+    } catch (e) {
+      emit(
+        RequirementsError(
+          message: 'Failed to export PDF',
           details: e.toString(),
         ),
       );

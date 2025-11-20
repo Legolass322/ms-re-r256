@@ -1,8 +1,14 @@
 import csv
 import io
 from typing import List
-from models.requirement import PrioritizedRequirement
+
 from jinja2 import Template
+from models.requirement import PrioritizedRequirement
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
 
 class ExportService:    
@@ -267,6 +273,105 @@ class ExportService:
         )
         
         return html_content
+    
+    def generate_pdf(self, requirements: List[PrioritizedRequirement], session_id: str) -> bytes:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            leftMargin=0.75 * inch,
+            rightMargin=0.75 * inch,
+            topMargin=0.85 * inch,
+            bottomMargin=0.75 * inch,
+            title=f"ARIA Prioritization Report - {session_id}"
+        )
+        
+        styles = getSampleStyleSheet()
+        title_style = styles["Title"]
+        subtitle_style = styles["Heading3"]
+        body_style = styles["BodyText"]
+
+        elements = []
+        elements.append(Paragraph("ARIA Prioritization Report", title_style))
+        elements.append(Paragraph(f"Session ID: {session_id}", body_style))
+        elements.append(Paragraph(f"Generated: {self._get_current_timestamp()}", body_style))
+        elements.append(Spacer(1, 12))
+
+        total_requirements = len(requirements)
+        avg_score = (
+            sum(req.priorityScore for req in requirements) / total_requirements
+            if total_requirements > 0 else 0
+        )
+        confidence_values = [req.confidence for req in requirements if req.confidence]
+        avg_confidence = (
+            sum(confidence_values) / len(confidence_values)
+            if confidence_values else 0
+        )
+
+        summary_data = [
+            ["Total Requirements", str(total_requirements)],
+            ["Average Priority Score", f"{avg_score:.1f}"],
+            ["Average Confidence", f"{avg_confidence * 100:.0f}%"],
+        ]
+
+        summary_table = Table(summary_data, colWidths=[2.5 * inch, 1.5 * inch])
+        summary_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        elements.append(summary_table)
+        elements.append(Spacer(1, 18))
+
+        elements.append(Paragraph("Prioritized Requirements", subtitle_style))
+        elements.append(Spacer(1, 6))
+
+        table_data = [[
+            "Rank", "Title", "Category", "Score", "Confidence",
+            "Business", "Cost", "Risk", "Urgency"
+        ]]
+        for req in requirements:
+            table_data.append([
+                f"#{req.rank}",
+                req.title,
+                req.category or "-",
+                f"{req.priorityScore:.1f}",
+                f"{req.confidence * 100:.0f}%" if req.confidence else "-",
+                f"{req.businessValue:.1f}" if req.businessValue is not None else "-",
+                f"{req.cost:.1f}" if req.cost is not None else "-",
+                f"{req.risk:.1f}" if req.risk is not None else "-",
+                f"{req.urgency:.1f}" if req.urgency is not None else "-",
+            ])
+
+        requirement_table = Table(
+            table_data,
+            repeatRows=1,
+            colWidths=[
+                0.6 * inch, 2.6 * inch, 1.2 * inch, 0.9 * inch, 1.1 * inch,
+                0.9 * inch, 0.7 * inch, 0.7 * inch, 0.9 * inch
+            ],
+        )
+        requirement_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.93, 0.95, 1)),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.Color(0.15, 0.2, 0.4)),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [
+                colors.whitesmoke, colors.white
+            ]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ]))
+        elements.append(requirement_table)
+
+        doc.build(elements)
+        pdf_data = buffer.getvalue()
+        buffer.close()
+        return pdf_data
     
     def _get_current_timestamp(self) -> str:
         from datetime import datetime

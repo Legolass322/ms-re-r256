@@ -433,6 +433,31 @@ class AriaApiClient {
     }
   }
 
+  /// Export results as PDF report
+  Future<Uint8List> exportPdf(
+    String sessionId,
+    List<PrioritizedRequirement> requirements,
+  ) async {
+    try {
+      final payload = {
+        'sessionId': sessionId,
+        'requirements': requirements.map((req) => req.toJson()).toList(),
+      };
+      final response = await _dio.post(
+        '/export/pdf',
+        data: payload,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final data = response.data;
+      if (data is Uint8List) {
+        return data;
+      }
+      return Uint8List.fromList((data as List<dynamic>).cast<int>());
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Health check
   Future<bool> healthCheck() async {
     try {
