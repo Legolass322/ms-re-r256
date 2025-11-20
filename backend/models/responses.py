@@ -95,3 +95,10 @@ class LLMConfigResponse(BaseModel):
     baseUrl: str = Field(..., description="LLM API base URL")
     model: str = Field(..., description="LLM model name")
     hasApiKey: bool = Field(..., description="Whether API key is configured (key value is not returned for security)")
+
+
+class ExportRequest(BaseModel):
+    sessionId: Optional[str] = Field(None, description="Session ID of the report (optional)")
+    requirements: List[PrioritizedRequirement] = Field(
+        ..., min_items=1, description="Requirements to include in the export"
+    )

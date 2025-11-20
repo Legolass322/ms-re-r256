@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:equatable/equatable.dart';
 import '../models/requirement.dart';
 import '../models/prioritized_requirement.dart';
@@ -116,13 +118,18 @@ class WorkspaceLoaded extends RequirementsState {
 }
 
 class ExportSuccess extends RequirementsState {
-  final String data;
   final String format;
+  final String? data;
+  final Uint8List? bytes;
 
-  const ExportSuccess({required this.data, required this.format});
+  const ExportSuccess({
+    required this.format,
+    this.data,
+    this.bytes,
+  });
 
   @override
-  List<Object?> get props => [data, format];
+  List<Object?> get props => [format, data, bytes];
 }
 
 class ChatGPTAnalysisComplete extends RequirementsState {

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,7 +15,7 @@ from models import (
     Requirement, PrioritizedRequirement, UploadResponse, 
     CreateRequirementsRequest, CreateRequirementsResponse,
     RequirementsList, PrioritizationRequest, PrioritizationResponse,
-    Error, HealthResponse, Weights
+    Error, HealthResponse, Weights, ExportRequest
 )
 from services.prioritization_service import PrioritizationService
 from services.file_service import FileService
@@ -293,6 +293,54 @@ async def export_html(sessionId: str):
     
     html_content = export_service.generate_html(session["prioritized_requirements"], sessionId)
     return HTMLResponse(content=html_content)
+
+@app.get("/export/pdf/{sessionId}", tags=["export"])
+async def export_pdf(sessionId: str):
+    if sessionId not in sessions:
+        raise HTTPException(
+            status_code=404,
+            detail=Error(
+                error="SESSION_NOT_FOUND",
+                message="Session not found"
+            ).dict()
+        )
+    
+    session = sessions[sessionId]
+    if not session["prioritized_requirements"]:
+        raise HTTPException(
+            status_code=404,
+            detail=Error(
+                error="NO_RESULTS",
+                message="No prioritization results found for this session"
+            ).dict()
+        )
+    
+    pdf_content = export_service.generate_pdf(session["prioritized_requirements"], sessionId)
+    
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False) as f:
+        f.write(pdf_content)
+        temp_file = f.name
+    
+    return FileResponse(
+        path=temp_file,
+        filename=f"aria_prioritization_{sessionId}.pdf",
+        media_type="application/pdf"
+    )
+
+@app.post("/export/pdf", tags=["export"])
+async def export_pdf_from_payload(request: ExportRequest):
+    pdf_content = export_service.generate_pdf(
+        request.requirements,
+        request.sessionId or "custom_report",
+    )
+    filename = f"aria_prioritization_{request.sessionId or 'report'}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename=\"{filename}\"'
+        }
+    )
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)

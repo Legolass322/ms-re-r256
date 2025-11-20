@@ -1,17 +1,27 @@
-// File saver stub for web platforms
-// This file provides a stub implementation that will never be called
-// because web uses the html.Blob approach in results_screen.dart
+// File saver for web platforms using dart:html
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:html' as html;
 
-// Stub File class for web
-class File {
-  final String path;
-  File(this.path);
-  Future<void> writeAsString(String data) async {
-    throw UnsupportedError('File.writeAsString is not supported on web');
-  }
+Future<String> saveTextFile(
+  String data,
+  String filename, {
+  String mimeType = 'text/plain',
+}) async {
+  final bytes = Uint8List.fromList(utf8.encode(data));
+  return saveBytesFile(bytes, filename, mimeType: mimeType);
 }
 
-Future<String> saveFileToDisk(String data, String filename) {
-  throw UnsupportedError('saveFileToDisk is not supported on web');
+Future<String> saveBytesFile(
+  Uint8List bytes,
+  String filename, {
+  String mimeType = 'application/octet-stream',
+}) async {
+  final blob = html.Blob([bytes], mimeType);
+  final url = html.Url.createObjectUrlFromBlob(blob);
+  final anchor = html.AnchorElement(href: url)
+    ..setAttribute('download', filename)
+    ..click();
+  html.Url.revokeObjectUrl(url);
+  return filename;
 }
-

@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import '../models/requirement.dart';
+import '../models/prioritized_requirement.dart';
 
 abstract class RequirementsEvent extends Equatable {
   const RequirementsEvent();
@@ -67,6 +68,16 @@ class ExportHtmlEvent extends RequirementsEvent {
 
   @override
   List<Object?> get props => [sessionId];
+}
+
+class ExportPdfEvent extends RequirementsEvent {
+  final String sessionId;
+  final List<PrioritizedRequirement> requirements;
+
+  const ExportPdfEvent(this.sessionId, this.requirements);
+
+  @override
+  List<Object?> get props => [sessionId, requirements];
 }
 
 class ResetEvent extends RequirementsEvent {

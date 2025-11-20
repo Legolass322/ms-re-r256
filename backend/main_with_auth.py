@@ -3,7 +3,7 @@ ARIA Backend API - FastAPI implementation with authentication and database
 AI-powered requirements prioritization tool
 """
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,7 +24,7 @@ from models import (
     RequirementsList, PrioritizationRequest, PrioritizationResponse,
     Error, HealthResponse, Weights, SessionSummary, SessionsResponse,
     SessionDetails, ChatGPTAnalysisRequest, ChatGPTAnalysisResponse,
-    LLMConfigRequest, LLMConfigResponse
+    LLMConfigRequest, LLMConfigResponse, ExportRequest
 )
 from services.prioritization_service import PrioritizationService
 from services.file_service import FileService
@@ -524,6 +524,74 @@ async def export_html(
     # Generate HTML report
     html_content = export_service.generate_html(prioritized_requirements, sessionId)
     return HTMLResponse(content=html_content)
+
+@app.get("/export/pdf/{sessionId}", tags=["export"])
+async def export_pdf(
+    sessionId: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    session = database_service.get_session(db, sessionId, current_user.id)
+    if not session:
+        raise HTTPException(
+            status_code=404,
+            detail=Error(
+                error="SESSION_NOT_FOUND",
+                message="Session not found or access denied"
+            ).dict()
+        )
+
+    prioritized_requirements = database_service.get_prioritized_requirements(db, sessionId)
+    if not prioritized_requirements:
+        raise HTTPException(
+            status_code=404,
+            detail=Error(
+                error="NO_RESULTS",
+                message="No prioritization results found for this session"
+            ).dict()
+        )
+
+    pdf_content = export_service.generate_pdf(prioritized_requirements, sessionId)
+
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False) as f:
+        f.write(pdf_content)
+        temp_file = f.name
+
+    return FileResponse(
+        path=temp_file,
+        filename=f"aria_prioritization_{sessionId}.pdf",
+        media_type="application/pdf"
+    )
+
+@app.post("/export/pdf", tags=["export"])
+async def export_pdf_from_payload(
+    request: ExportRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if request.sessionId:
+        session = database_service.get_session(db, request.sessionId, current_user.id)
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail=Error(
+                    error="SESSION_NOT_FOUND",
+                    message="Session not found or access denied"
+                ).dict()
+            )
+
+    pdf_content = export_service.generate_pdf(
+        request.requirements,
+        request.sessionId or "custom_report"
+    )
+    filename = f"aria_prioritization_{request.sessionId or 'report'}.pdf"
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
 
 # ============================================================================
 # USER SESSIONS ENDPOINTS
